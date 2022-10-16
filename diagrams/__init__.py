@@ -37,6 +37,15 @@ def setcluster(cluster):
     __cluster.set(cluster)
 
 
+class DiagramManager:
+    def __init__(self,
+                 diagramFileName = "Test",
+                 diagramName = "Test"):
+        self.diagramFileName = diagramFileName
+        self.diagramName = diagramName
+        self.levels = {"1":[]}
+        self.edges = []
+
 class Diagram:
     __directions = ("TB", "BT", "LR", "RL")
     __curvestyles = ("ortho", "curved")
@@ -86,7 +95,7 @@ class Diagram:
         show: bool = True,
         graph_attr: dict = {},
         node_attr: dict = {},
-        edge_attr: dict = {},
+        edge_attr: dict = {}
     ):
         """Diagram represents a global diagrams context.
 
@@ -188,90 +197,6 @@ class Diagram:
             self.dot.render(format=self.outformat, view=self.show, quiet=True)
 
 
-class Cluster:
-    __directions = ("TB", "BT", "LR", "RL")
-    __bgcolors = ("#E5F5FD", "#EBF3E7", "#ECE8F6", "#FDF7E3")
-
-    # fmt: off
-    _default_graph_attrs = {
-        "shape": "box",
-        "style": "rounded",
-        "labeljust": "l",
-        "pencolor": "#AEB6BE",
-        "fontname": "Sans-Serif",
-        "fontsize": "12",
-    }
-
-    # fmt: on
-
-    # FIXME:
-    #  Cluster direction does not work now. Graphviz couldn't render
-    #  correctly for a subgraph that has a different rank direction.
-    def __init__(
-        self,
-        label: str = "cluster",
-        direction: str = "LR",
-        graph_attr: dict = {},
-    ):
-        """Cluster represents a cluster context.
-
-        :param label: Cluster label.
-        :param direction: Data flow direction. Default is 'left to right'.
-        :param graph_attr: Provide graph_attr dot config attributes.
-        """
-        self.label = label
-        self.name = "cluster_" + self.label
-
-        self.dot = Digraph(self.name)
-
-        # Set attributes.
-        for k, v in self._default_graph_attrs.items():
-            self.dot.graph_attr[k] = v
-        self.dot.graph_attr["label"] = self.label
-
-        if not self._validate_direction(direction):
-            raise ValueError(f'"{direction}" is not a valid direction')
-        self.dot.graph_attr["rankdir"] = direction
-
-        # Node must be belong to a diagrams.
-        self._diagram = getdiagram()
-        if self._diagram is None:
-            raise EnvironmentError("Global diagrams context not set up")
-        self._parent = getcluster()
-
-        # Set cluster depth for distinguishing the background color
-        self.depth = self._parent.depth + 1 if self._parent else 0
-        coloridx = self.depth % len(self.__bgcolors)
-        self.dot.graph_attr["bgcolor"] = self.__bgcolors[coloridx]
-
-        # Merge passed in attributes
-        self.dot.graph_attr.update(graph_attr)
-
-    def __enter__(self):
-        setcluster(self)
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        if self._parent:
-            self._parent.subgraph(self.dot)
-        else:
-            self._diagram.subgraph(self.dot)
-        setcluster(self._parent)
-
-    def _validate_direction(self, direction: str):
-        direction = direction.upper()
-        if direction in self.__directions:
-            return True
-        return False
-
-    def node(self, nodeid: str, label: str, **attrs) -> None:
-        """Create a new node in the cluster."""
-        self.dot.node(nodeid, label=label, **attrs)
-
-    def subgraph(self, dot: Digraph) -> None:
-        self.dot.subgraph(dot)
-
-
 class Node:
     """Node represents a node for a specific backend service."""
 
@@ -283,7 +208,10 @@ class Node:
 
     _height = 1.9
 
-    def __init__(self, label: str = "", **attrs: Dict):
+    def __init__(self, label: str = "", 
+                 diagramManager: DiagramManager = None,
+                 level: str = "",
+                 **attrs: Dict):
         """Node represents a system component.
 
         :param label: Node label.
@@ -291,6 +219,8 @@ class Node:
         # Generates an ID for identifying a node.
         self._id = self._rand_id()
         self.label = label
+        self.diagramManager = diagramManager
+        self.level = level
 
         # fmt: off
         # If a node has an icon, increase the height slightly to avoid
@@ -317,6 +247,9 @@ class Node:
             self._cluster.node(self._id, self.label, **self._attrs)
         else:
             self._diagram.node(self._id, self.label, **self._attrs)
+            
+        self.edges = []
+        self.clabel = "1"
 
     def __repr__(self):
         _name = self.__class__.__name__
@@ -326,10 +259,12 @@ class Node:
         """Implement Self - Node, Self - [Nodes] and Self - Edge."""
         if isinstance(other, list):
             for node in other:
-                self.connect(node, Edge(self))
+                edge = Edge(self)
+                self.connect(node, edge)
             return other
         elif isinstance(other, Node):
-            return self.connect(other, Edge(self))
+            edge = Edge(self)
+            return self.connect(other, edge)
         else:
             other.node = self
             return other
@@ -345,12 +280,18 @@ class Node:
 
     def __rshift__(self, other: Union["Node", List["Node"], "Edge"]):
         """Implements Self >> Node, Self >> [Nodes] and Self Edge."""
+
         if isinstance(other, list):
             for node in other:
-                self.connect(node, Edge(self, forward=True))
+                edge = Edge(self, forward=True)
+                self.connect(node, edge)
             return other
         elif isinstance(other, Node):
-            return self.connect(other, Edge(self, forward=True))
+            edge = Edge(self, forward=True)
+            return self.connect(other, edge)
+        
+        elif isinstance(other, Cluster):
+            self >> other.dot.nodes
         else:
             other.forward = True
             other.node = self
@@ -360,10 +301,12 @@ class Node:
         """Implements Self << Node, Self << [Nodes] and Self << Edge."""
         if isinstance(other, list):
             for node in other:
-                self.connect(node, Edge(self, reverse=True))
+                edge = Edge(self, forward=True)
+                self.connect(node, edge)
             return other
         elif isinstance(other, Node):
-            return self.connect(other, Edge(self, reverse=True))
+            edge = Edge(self, forward=True)
+            return self.connect(other, edge)
         else:
             other.reverse = True
             return other.connect(self)
@@ -375,7 +318,8 @@ class Node:
                 o.forward = True
                 o.connect(self)
             else:
-                o.connect(self, Edge(self, forward=True))
+                edge = Edge(self, forward=True)
+                o.connect(self, edge)
         return self
 
     def __rlshift__(self, other: Union[List["Node"], List["Edge"]]):
@@ -385,7 +329,8 @@ class Node:
                 o.reverse = True
                 o.connect(self)
             else:
-                o.connect(self, Edge(self, reverse=True))
+                edge = Edge(self, forward=True)
+                o.connect(self, edge)
         return self
 
     @property
@@ -402,10 +347,31 @@ class Node:
         """
         if not isinstance(node, Node):
             ValueError(f"{node} is not a valid Node")
+        
+        else:
+            node.level = self.level
+        
         if not isinstance(edge, Edge):
             ValueError(f"{edge} is not a valid Edge")
         # An edge must be added on the global diagrams, not a cluster.
+        
+        if getattr(edge, "forward", True) == True:
+            
+            if self.level in self.diagramManager.levels:
+                edge._attrs["label"] = node.level + ".{0}".format(len(self.diagramManager.levels[self.level]) + 1)
+            
+            else:
+                edge._attrs["label"] = node.level + ".{0}".format(1)
+        else:
+            edge._attrs["label"] = node.level
+        
+        if self.level in self.diagramManager.levels:
+            self.diagramManager.levels[self.level].append(edge)
+        else:
+            self.diagramManager.levels[self.level] = [edge]
+        
         self._diagram.connect(self, node, edge)
+        self.edge = edge
         return node
 
     @staticmethod
@@ -533,6 +499,150 @@ class Edge:
         else:
             direction = "none"
         return {**self._attrs, "dir": direction}
+
+
+class Cluster:
+    __directions = ("TB", "BT", "LR", "RL")
+    __bgcolors = ("#E5F5FD", "#EBF3E7", "#ECE8F6", "#FDF7E3")
+
+    # fmt: off
+    _default_graph_attrs = {
+        "shape": "box",
+        "style": "rounded",
+        "labeljust": "l",
+        "pencolor": "#AEB6BE",
+        "fontname": "Sans-Serif",
+        "fontsize": "12",
+    }
+
+    # fmt: on
+
+    # FIXME:
+    #  Cluster direction does not work now. Graphviz couldn't render
+    #  correctly for a subgraph that has a different rank direction.
+    def __init__(
+        self,
+        label: str = "cluster",
+        direction: str = "LR",
+        graph_attr: dict = {},
+    ):
+        """Cluster represents a cluster context.
+
+        :param label: Cluster label.
+        :param direction: Data flow direction. Default is 'left to right'.
+        :param graph_attr: Provide graph_attr dot config attributes.
+        """
+        self.label = label
+        self.name = "cluster_" + self.label
+
+        self.dot = Digraph(self.name)
+        self.dot.nodes = []
+        
+        # Set attributes.
+        for k, v in self._default_graph_attrs.items():
+            self.dot.graph_attr[k] = v
+        self.dot.graph_attr["label"] = self.label
+
+        if not self._validate_direction(direction):
+            raise ValueError(f'"{direction}" is not a valid direction')
+        self.dot.graph_attr["rankdir"] = direction
+
+        # Node must be belong to a diagrams.
+        self._diagram = getdiagram()
+        if self._diagram is None:
+            raise EnvironmentError("Global diagrams context not set up")
+        self._parent = getcluster()
+
+        # Set cluster depth for distinguishing the background color
+        self.depth = self._parent.depth + 1 if self._parent else 0
+        coloridx = self.depth % len(self.__bgcolors)
+        self.dot.graph_attr["bgcolor"] = self.__bgcolors[coloridx]
+
+        # Merge passed in attributes
+        self.dot.graph_attr.update(graph_attr)
+        
+    def insertElementToDigraph(self, other: Union[Node, List[Node]]):
+        if isinstance(other, list):
+            [self.dot.nodes.append(o) for o in other]
+        
+        elif isinstance(other, Node):
+            self.dot.nodes.append(other)
+            
+        else:
+            pass
+        
+    def level(self, name=None):
+        for i, node in enumerate(self.dot.nodes, start=1):
+            node.level = node.level + ".{0}".format(i)
+
+    def __rsub__(self, other: Union[List["Node"], List["Edge"]]) -> List["Edge"]:
+        """Called for [Nodes] or [Edges] - Self because list don't have __sub__ operators."""
+        for node in self.dot.nodes:
+            other - node
+
+    def __rshift__(self, other: Union["Node", "Edge", List["Node"]]):
+        """Implements Self >> Node or Edge and Self >> [Nodes]."""
+        for node in self.dot.nodes:
+            if isinstance(other, Cluster):
+                [node >> otherNode for otherNode in other.dot.nodes]
+                
+            elif isinstance(other, Node):
+                node >> other
+
+    def __lshift__(self, other: Union["Node", "Edge", List["Node"]]):
+        """Implements Self << Node or Edge and Self << [Nodes]."""
+        for node in self.dot.nodes:
+            if isinstance(other, Cluster):
+                [node << otherNode for otherNode in other.dot.nodes]
+                
+            elif isinstance(other, Node):
+                node << other
+
+    def __rrshift__(self, other: Union[List["Node"], List["Edge"]]) -> List["Edge"]:
+        """Called for [Nodes] or [Edges] >> Self because list of Edges don't have __rshift__ operators."""
+        for node in self.dot.nodes:
+            if isinstance(other, Cluster):
+                [otherNode >> node for otherNode in other.dot.nodes]
+                
+            elif isinstance(other, Node):
+                other >> node
+            
+            else:
+                pass
+
+    def __rlshift__(self, other: Union[List["Node"], List["Edge"]]) -> List["Edge"]:
+        """Called for [Nodes] or [Edges] << Self because list of Edges don't have __lshift__ operators."""
+        for node in self.dot.nodes:
+            if isinstance(other, Cluster):
+                [otherNode << node for otherNode in other.dot.nodes]
+                
+            elif isinstance(other, Node):
+                other << node
+        
+    def __enter__(self):
+        setcluster(self)
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        if self._parent:
+            self._parent.subgraph(self.dot)
+        else:
+            self._diagram.subgraph(self.dot)
+        setcluster(self._parent)
+
+    def _validate_direction(self, direction: str):
+        direction = direction.upper()
+        if direction in self.__directions:
+            return True
+        return False
+
+    def node(self, nodeid: str, label: str, **attrs) -> None:
+        """Create a new node in the cluster."""
+        self.dot.node(nodeid, label=label, **attrs)
+
+    def subgraph(self, dot: Digraph) -> None:
+        self.dot.subgraph(dot)
+
 
 
 Group = Cluster
