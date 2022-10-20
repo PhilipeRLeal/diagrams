@@ -108,7 +108,7 @@ class Diagram:
     _default_graph_attrs = {
         "pad": "0.002",
         "splines": "ortho",
-        "nodesep": "0.40",
+        "nodesep": "0.60",
         "ranksep": "0.75",
         "fontname": "Sans-Serif",
         "fontsize": DIAGRAMFONTSIZE,
@@ -121,6 +121,8 @@ class Diagram:
         "width": "5.4",
         "height": "2.4",
         "labelloc": "b",
+        "imagepos":"tc",
+        "labelloc":"b",
         # imagepos attribute is not backward compatible
         # TODO: check graphviz version to see if "imagepos" is available >= 2.40
         # https://github.com/xflr6/graphviz/blob/master/graphviz/backend.py#L248
@@ -285,8 +287,6 @@ class Diagram:
                                 quiet=True,
                                 renderer=self.renderer,
                                 engine=self.engine,
-                                scale = self.scale,
-                                resolution=self.dot.graph_attr.get("resolution", 180)
                                 )
         else:
             self.dot.render(format=self.outformat,
@@ -306,13 +306,17 @@ class Node:
     _icon_dir = None
     _icon = None
 
-    _height = 10.0
+    _height = "2.0"
     fontsize = NODEFONTSIZE
 
     def __init__(self, 
                  label: str = "", 
                  diagramManager: DiagramManager = None,
                  clabel: str = "1",
+                 padding="0.2px",
+                 height = "2.8",
+                 imagepos ="tc",
+                 labelloc ="b",
                  **attrs: Dict):
         """Node represents a system component.
 
@@ -328,13 +332,13 @@ class Node:
         # If a node has an icon, increase the height slightly to avoid
         # that label being spanned between icon image and white space.
         # Increase the height by the number of new lines included in the label.
-        padding = 0.02 * (label.count('\n'))
-        
-        height = str(self._height + padding)
+        _padding = 0.02 * (label.count('\n') + 1)        
+
         
         self._attrs = {
             "shape": "none",
-            "height": height,
+            "height": "none",
+            "padding":padding,
             "image": self._load_icon(),
             "fontsize": NODEFONTSIZE,
             "NodeFontSize":NODEFONTSIZE,
@@ -342,6 +346,11 @@ class Node:
         } if self._icon else {}
 
         # fmt: on
+        self._attrs.update(**dict(padding=str(padding),
+                            height = height,
+                            imagepos =imagepos,
+                            labelloc =labelloc)
+                           )
         self._attrs.update(attrs)
 
         # Node must be belong to a diagrams.
