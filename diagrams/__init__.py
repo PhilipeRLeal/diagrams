@@ -14,6 +14,27 @@ from graphviz import Digraph
 __diagram = contextvars.ContextVar("diagrams")
 __cluster = contextvars.ContextVar("cluster")
 
+CLUSTERFONTSIZE = "35.5"
+EDGEFONTSIZE = "35.5"
+NODEFONTSIZE = "35.5"
+DIAGRAMFONTSIZE = "35.5"
+
+FONTNAME = "Sans-Serif"
+
+RENDERERS = ('cairo',  # $ dot -T:
+             'dot',
+             'fig',
+             'gd',
+             'gdiplus',
+             'map',
+             'pic',
+             'pov',
+             'ps',
+             'svg',
+             'tk',
+             'vml',
+             'vrml',
+             'xdot')
 
 def getdiagram():
     try:
@@ -45,28 +66,60 @@ class DiagramManager:
         self.diagramName = diagramName
         self.levels = {"1":[]}
         self.edges = []
+        
+    def __str__(self):
+        
+        for key, items in self.levels.items():
+            for item in items:
+                
+                itemView = f"Level: {key} ==> {item} \n"
+                
+                print(itemView)
+                
+            print("\n\n")
+                
+        return ""
+                
+            
 
 class Diagram:
     __directions = ("TB", "BT", "LR", "RL")
     __curvestyles = ("ortho", "curved")
-    __outformats = ("png", "jpg", "svg", "pdf", "dot")
+    __outformats = ('bmp', 'canon', 'cgimage',
+                    'cmap', 'cmapx', 'cmapx_np',
+                    'dot', 'dot_json', 'eps',
+                    'exr', 'fig', 'gd',
+                    'gd2', 'gif', 'gtk',
+                    'gv', 'ico', 'imap',
+                    'imap_np', 'ismap',
+                    'jp2', 'jpe', 'jpeg',
+                    'jpg', 'json', 'json0',
+                    'pct', 'pdf', 'pic',
+                    'pict', 'plain', 'plain-ext',
+                    'png', 'pov', 'ps', 'ps2',
+                    'psd', 'sgi', 'svg',
+                    'svgz', 'tga', 'tif',
+                    'tiff', 'tk', 'vml', 'vmlz',
+                    'vrml', 'wbmp', 'webp', 'x11',
+                    'xdot', 'xdot1.2', 'xdot1.4',
+                    'xdot_json', 'xlib')
 
     # fmt: off
     _default_graph_attrs = {
-        "pad": "2.0",
+        "pad": "0.002",
         "splines": "ortho",
-        "nodesep": "0.60",
+        "nodesep": "0.40",
         "ranksep": "0.75",
         "fontname": "Sans-Serif",
-        "fontsize": "15",
+        "fontsize": DIAGRAMFONTSIZE,
         "fontcolor": "#2D3436",
     }
     _default_node_attrs = {
         "shape": "box",
         "style": "rounded",
         "fixedsize": "true",
-        "width": "1.4",
-        "height": "1.4",
+        "width": "5.4",
+        "height": "2.4",
         "labelloc": "b",
         # imagepos attribute is not backward compatible
         # TODO: check graphviz version to see if "imagepos" is available >= 2.40
@@ -74,7 +127,7 @@ class Diagram:
         # "imagepos": "tc",
         "imagescale": "true",
         "fontname": "Sans-Serif",
-        "fontsize": "13",
+        "fontsize": NODEFONTSIZE,
         "fontcolor": "#2D3436",
     }
     _default_edge_attrs = {
@@ -95,7 +148,10 @@ class Diagram:
         show: bool = True,
         graph_attr: dict = {},
         node_attr: dict = {},
-        edge_attr: dict = {}
+        edge_attr: dict = {},
+        renderer: str = "png",
+        engine: str = None,
+        scale: int = 72
     ):
         """Diagram represents a global diagrams context.
 
@@ -110,6 +166,11 @@ class Diagram:
         :param graph_attr: Provide graph_attr dot config attributes.
         :param node_attr: Provide node_attr dot config attributes.
         :param edge_attr: Provide edge_attr dot config attributes.
+        :param renderer: Provide the type of the renderer to be applied 
+            by the graphviz ("svg")
+        :param engine:   Provide the type of the engine to be applied
+            by the graphviz
+        :param scale:   Provide the scale to be applied by the graphviz
         """
         self.name = name
         if not name and not filename:
@@ -117,7 +178,10 @@ class Diagram:
         elif not filename:
             filename = "_".join(self.name.split()).lower()
         self.filename = filename
-        self.dot = Digraph(self.name, filename=self.filename)
+        self.dot = Digraph(self.name, 
+                           filename=self.filename,
+                           
+                           )
 
         # Set attributes.
         for k, v in self._default_graph_attrs.items():
@@ -151,6 +215,30 @@ class Diagram:
         self.dot.edge_attr.update(edge_attr)
 
         self.show = show
+        
+        if renderer not in RENDERERS:
+            self.renderer = None
+            
+        elif renderer is None:
+            self.renderer = renderer
+        else:
+            self.renderer = renderer
+            
+        self.engine = engine
+        
+        self.scale = scale
+        
+        
+    def setRenderingSize(self, 
+                         width="900pt",
+                         height="1800pt",
+                         fixedsize='true',
+                         **kwargs):
+        
+        self.dot.attr(width=width,
+                      height=height,
+                      fixedsize=fixedsize,
+                      **kwargs)
 
     def __str__(self) -> str:
         return str(self.dot)
@@ -192,9 +280,21 @@ class Diagram:
     def render(self) -> None:
         if isinstance(self.outformat, list):
             for one_format in self.outformat:
-                self.dot.render(format=one_format, view=self.show, quiet=True)
+                self.dot.render(format=one_format,
+                                view=self.show,
+                                quiet=True,
+                                renderer=self.renderer,
+                                engine=self.engine,
+                                scale = self.scale,
+                                resolution=self.dot.graph_attr.get("resolution", 180)
+                                )
         else:
-            self.dot.render(format=self.outformat, view=self.show, quiet=True)
+            self.dot.render(format=self.outformat,
+                            view=self.show,
+                            quiet=True,
+                            renderer=self.renderer,
+                            engine=self.engine,
+                            scale = self.scale)
 
 
 class Node:
@@ -206,11 +306,13 @@ class Node:
     _icon_dir = None
     _icon = None
 
-    _height = 1.9
+    _height = 10.0
+    fontsize = NODEFONTSIZE
 
-    def __init__(self, label: str = "", 
+    def __init__(self, 
+                 label: str = "", 
                  diagramManager: DiagramManager = None,
-                 level: str = "",
+                 clabel: str = "1",
                  **attrs: Dict):
         """Node represents a system component.
 
@@ -220,17 +322,23 @@ class Node:
         self._id = self._rand_id()
         self.label = label
         self.diagramManager = diagramManager
-        self.level = level
-
+        self.clabel = clabel
+        
         # fmt: off
         # If a node has an icon, increase the height slightly to avoid
         # that label being spanned between icon image and white space.
         # Increase the height by the number of new lines included in the label.
-        padding = 0.4 * (label.count('\n'))
+        padding = 0.02 * (label.count('\n'))
+        
+        height = str(self._height + padding)
+        
         self._attrs = {
             "shape": "none",
-            "height": str(self._height + padding),
+            "height": height,
             "image": self._load_icon(),
+            "fontsize": NODEFONTSIZE,
+            "NodeFontSize":NODEFONTSIZE,
+            "bgcolor": attrs.get("bgcolor", "#ffffff")
         } if self._icon else {}
 
         # fmt: on
@@ -249,7 +357,7 @@ class Node:
             self._diagram.node(self._id, self.label, **self._attrs)
             
         self.edges = []
-        self.clabel = "1"
+        
 
     def __repr__(self):
         _name = self.__class__.__name__
@@ -283,15 +391,18 @@ class Node:
 
         if isinstance(other, list):
             for node in other:
-                edge = Edge(self, forward=True)
-                self.connect(node, edge)
+                self >> node
             return other
+        
         elif isinstance(other, Node):
             edge = Edge(self, forward=True)
+            self.updateEdgeLabel(other, edge)
+            other.clabel = edge.label
             return self.connect(other, edge)
         
         elif isinstance(other, Cluster):
-            self >> other.dot.nodes
+            for node in other:
+                self >> node
         else:
             other.forward = True
             other.node = self
@@ -336,6 +447,27 @@ class Node:
     @property
     def nodeid(self):
         return self._id
+    
+    def updateEdgeLabel(self, node: "Node", edge: "Edge"):
+        
+        if isinstance(node, list):
+            for n in node:
+                self.updateEdgeLabel(n, edge)
+        
+        elif isinstance(node, Node):
+            edgeForwardState =  getattr(edge, "forward", False)   
+            if edgeForwardState:
+                
+                if self.clabel in self.diagramManager.levels:
+                    edge.label = self.clabel + ".{0}".format(len(self.diagramManager.levels[self.clabel]) + 1)
+                
+                else:
+                    edge.label = self.clabel + ".{0}".format(1)
+            else:
+                edge.label = node.clabel
+
+        else:
+            pass
 
     # TODO: option for adding flow description to the connection edge
     def connect(self, node: "Node", edge: "Edge"):
@@ -347,28 +479,15 @@ class Node:
         """
         if not isinstance(node, Node):
             ValueError(f"{node} is not a valid Node")
-        
-        else:
-            node.level = self.level
-        
+
         if not isinstance(edge, Edge):
             ValueError(f"{edge} is not a valid Edge")
         # An edge must be added on the global diagrams, not a cluster.
-        
-        if getattr(edge, "forward", True) == True:
-            
-            if self.level in self.diagramManager.levels:
-                edge._attrs["label"] = node.level + ".{0}".format(len(self.diagramManager.levels[self.level]) + 1)
-            
-            else:
-                edge._attrs["label"] = node.level + ".{0}".format(1)
+
+        if self.clabel in self.diagramManager.levels:
+            self.diagramManager.levels[self.clabel].append(edge)
         else:
-            edge._attrs["label"] = node.level
-        
-        if self.level in self.diagramManager.levels:
-            self.diagramManager.levels[self.level].append(edge)
-        else:
-            self.diagramManager.levels[self.level] = [edge]
+            self.diagramManager.levels[self.clabel] = [edge]
         
         self._diagram.connect(self, node, edge)
         self.edge = edge
@@ -388,8 +507,8 @@ class Edge:
 
     _default_edge_attrs = {
         "fontcolor": "#2D3436",
-        "fontname": "Sans-Serif",
-        "fontsize": "13",
+        "fontname": FONTNAME,
+        "fontsize": EDGEFONTSIZE,
     }
 
     def __init__(
@@ -434,7 +553,29 @@ class Edge:
         if style:
             self._attrs["style"] = style
         self._attrs.update(attrs)
+        
+    @property
+    def color(self):
+        return self._attrs.get("color", None)
+    
+    @color.setter
+    def color(self, newColor: str):
+        self._attrs["color"] = newColor
+    
+    @property
+    def style(self):
+        return self._attrs.get("style", None)
+    
+    @style.setter
+    def style(self, newStyle: str):
+        self._attrs["style"] = newStyle
+        
+    
+    def __repr__(self):
 
+        return f"""Edge(node = {self.node}, forward = {self.forward},reverse = {self.reverse}, label = {self.label}, color = {self.color}, style = {self.style})"""
+        
+        
     def __sub__(self, other: Union["Node", "Edge", List["Node"]]):
         """Implement Self - Node or Edge and Self - [Nodes]"""
         return self.connect(other)
@@ -487,7 +628,15 @@ class Edge:
             else:
                 self.node = other
                 return self
-
+    
+    @property
+    def label(self):
+        return self._attrs.get("label", None)
+    
+    @label.setter
+    def label(self, newLabel):
+        self._attrs["label"] = newLabel
+    
     @property
     def attrs(self) -> Dict:
         if self.forward and self.reverse:
@@ -499,7 +648,9 @@ class Edge:
         else:
             direction = "none"
         return {**self._attrs, "dir": direction}
-
+    
+    
+    
 
 class Cluster:
     __directions = ("TB", "BT", "LR", "RL")
@@ -511,8 +662,8 @@ class Cluster:
         "style": "rounded",
         "labeljust": "l",
         "pencolor": "#AEB6BE",
-        "fontname": "Sans-Serif",
-        "fontsize": "12",
+        "fontname": FONTNAME,
+        "fontsize": CLUSTERFONTSIZE
     }
 
     # fmt: on
@@ -561,7 +712,26 @@ class Cluster:
         # Merge passed in attributes
         self.dot.graph_attr.update(graph_attr)
         
+        
+        self.subclusters = set()
+        
     def insertElementToDigraph(self, other: Union[Node, List[Node]]):
+        """
+        Inserts the respective inputs into the digraph.
+        
+        This method accepts both a single element of type Node as well as 
+        a list of these elements.
+
+        Parameters
+        ----------
+        other : Union[Node, List[Node]]
+            DESCRIPTION.
+
+        Returns
+        -------
+        None.
+
+        """
         if isinstance(other, list):
             [self.dot.nodes.append(o) for o in other]
         
@@ -570,6 +740,8 @@ class Cluster:
             
         else:
             pass
+        
+
         
     def level(self, name=None):
         for i, node in enumerate(self.dot.nodes, start=1):
@@ -642,7 +814,46 @@ class Cluster:
 
     def subgraph(self, dot: Digraph) -> None:
         self.dot.subgraph(dot)
+        
+    def __iter__(self) -> Node:
+        """
+        Iterate over the Nodes within the group
 
+        Yield
+        -------
+        Node.
+
+        """
+        
+        for node in self.dot.nodes:
+            yield node
+    
+    def fetchSubclusters(self):
+        """
+        Returns all available subclusters from this cluster
+
+        Returns
+        -------
+        subcluster : Cluster
+            DESCRIPTION.
+
+        """
+        for subcluster in self.subclusters:
+            return subcluster
+        
+        
+    def addSubcluster(self, *subclusters):
+        """
+        Adds the provided subcluster(s) to this parental cluster
+
+        Returns
+        -------
+        subcluster : Cluster
+            DESCRIPTION.
+
+        """
+        for subcluster in subclusters:
+            self.subclusters.add(subcluster)
 
 
 Group = Cluster

@@ -4,7 +4,7 @@ save_data_on_exit = True
 save_history = True
 save_non_project_files = False
 project_type = 'empty-project-type'
-recent_files = ['diagrams\\__init__.py', 'tests\\test_inheritanceLabeling.py', 'diagrams\\programming\\flowchart.py']
+recent_files = ['tests\\test_inheritanceLabeling.py', 'diagrams\\__init__.py', '..\\..\\..\\..\\.conda\\envs\\Python_3.10\\lib\\site-packages\\graphviz\\rendering.py', '..\\..\\..\\..\\.conda\\envs\\Python_3.10\\lib\\site-packages\\graphviz\\backend\\rendering.py', '..\\..\\..\\..\\.conda\\envs\\Python_3.10\\lib\\site-packages\\graphviz\\backend\\dot_command.py', '..\\..\\..\\..\\.conda\\envs\\Python_3.10\\lib\\site-packages\\graphviz\\parameters\\formats.py']
 
 [main]
 version = 0.2.0

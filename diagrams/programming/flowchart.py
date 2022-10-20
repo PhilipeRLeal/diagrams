@@ -10,6 +10,10 @@ class _Flowchart(_Programming):
 
 class Action(_Flowchart):
     _icon = "action.png"
+    
+
+class DangerAction(_Flowchart):
+    _icon = "action-danger.png"
 
 
 class Collate(_Flowchart):

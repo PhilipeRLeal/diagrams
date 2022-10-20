@@ -10,3 +10,4 @@ class _Programming(Node):
     _icon_dir = "resources/programming"
 
     fontcolor = "#ffffff"
+    _height = 10.0
